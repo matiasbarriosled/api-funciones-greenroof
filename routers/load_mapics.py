@@ -1,10 +1,9 @@
 import requests
 import io
-from PIL import Image
+from io import BytesIO
+from fastapi import APIRouter
 from google.cloud import secretmanager
 from google.oauth2 import service_account
-from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
 
 def access_secret_version(project_id, secret_id, version_id="latest"):
     """
@@ -26,27 +25,23 @@ def access_secret_version(project_id, secret_id, version_id="latest"):
 project_id = "utopian-honor-438417-u7"  
 #
 
-
 router_mapics = APIRouter()
-@router_mapics.post("/download_mapics")
-def download_satellite_image(lat, lng, zoom=19):#por parametros la api-key y el zoom como predefinidos, se pueden cambiar o ingresar otros ajustes
+@router_mapics.post("/load_mapics")
+def load_mapics(lat, lng, zoom, ancho, alto):
     secret_api_key = access_secret_version(project_id, "Google-SatImage")
-    #
-    url = f"https://maps.googleapis.com/maps/api/staticmap?center={lat},{lng}&zoom={zoom}&size=600x600&maptype=satellite&key={secret_api_key}"
     
-    #
-    response = requests.get(url)
-    
-    #
-    if response.status_code == 200:
-    # Crea un archivo temporal o usa un objeto BytesIO
-        image = Image.open(io.BytesIO(response.content))
-    
-        # Manipular la imagen (por ejemplo, redimensionar)
-        image = image.resize((1000, 1000))  # Cambia el tamaño a 300x300 píxeles
-
-        # Guardar la imagen en el disco
-        image.save("satellite_image.png")
-        print("Imagen guardada como 'satellite_image.png'.")
-    else:
-        return {"error": "Failed to retrieve image."}
+    url_base = "https://maps.googleapis.com/maps/api/staticmap"
+    try:
+        params = {
+            "key": secret_api_key,
+            "center": f"{lat},{lng}",
+            "zoom": zoom,
+            "size": f"{ancho}x{alto}",
+            "maptype": "satellite",
+            "scale": 2
+        }
+        response = requests.get(url_base, params=params)
+        response.raise_for_status()
+        return io.imread(BytesIO(response.content))
+    except Exception as e:
+        return None
